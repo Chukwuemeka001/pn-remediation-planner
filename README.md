@@ -31,6 +31,12 @@ The plan summary includes a count of each `why_missed` reason, with repeated
 reasons grouped together. New journals save these counts in JSON; older
 journals show the breakdown from their existing day tasks.
 
+The plan also shows topics missed more than once. It counts topic tags in the
+saved focus days, ignoring case and extra spaces, and shows `None yet` when
+there are no repeats. JSON output includes the same list as `repeated_topics`.
+This section is calculated when the plan is displayed; it does not add fields
+to or rewrite the journal.
+
 Use `--days 5` or `--days 10` for a shorter or longer plan. Seven days is the
 default. These options use `journal-5.json` and `journal-10.json` by default,
 so the existing `journal.json` stays intact. You can choose a different file

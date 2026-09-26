@@ -396,6 +396,28 @@ def reason_breakdown(journal):
     ))
 
 
+def repeated_topics(journal):
+    """Count missed-topic entries in saved focus days, without changing the journal."""
+    counts = Counter()
+    labels = {}
+    for day in journal["days"][:-2]:
+        tasks = day["tasks"]
+        for topic_task, following_task in zip(tasks, tasks[1:]):
+            if not following_task.startswith("Missed because: ") or not topic_task.endswith("]"):
+                continue
+            topic, separator, _ = topic_task.rpartition(" [")
+            if not separator:
+                continue
+            key = normalize_topic(topic)
+            counts[key] += 1
+            labels.setdefault(key, topic)
+    return [
+        {"topic": labels[key], "count": count}
+        for key, count in sorted(counts.items(), key=lambda item: (-item[1], labels[item[0]].casefold()))
+        if count > 1
+    ]
+
+
 def render_journal(journal):
     missed_count = journal["missed_count"]
     missed_word = "question" if missed_count == 1 else "questions"
@@ -413,6 +435,12 @@ def render_journal(journal):
             for reason, amount in sorted(reasons.items(), key=lambda item: (-item[1], item[0].casefold()))
         )
         lines.append("")
+    lines.append("Topics missed more than once:")
+    repeats = repeated_topics(journal)
+    lines.extend(f"  • {item['count']} × {item['topic']}" for item in repeats)
+    if not repeats:
+        lines.append("  • None yet.")
+    lines.append("")
     for day in journal["days"]:
         status = "complete" if day["completed"] else "pending"
         lines.append(f"Day {day['day']} — {day['title']} ({status})")
@@ -429,6 +457,7 @@ def plan_as_json(journal):
     output = {"header": "Today's focus", **journal}
     output["days_studied_in_a_row"] = count_streak(journal.get("study_dates", []))
     output["why_missed_counts"] = reason_breakdown(journal)
+    output["repeated_topics"] = repeated_topics(journal)
     output["scope_review"] = journal.get("scope_review") or {
         "status": "pending",
         "required_before": "sharing with the study group",

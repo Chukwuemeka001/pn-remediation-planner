@@ -189,6 +189,36 @@ class RemediationTests(unittest.TestCase):
             self.assertNotEqual(invalid.returncode, 0)
             self.assertIn("why_missed_counts", invalid.stderr)
 
+    def test_repeated_topics_are_read_only_plan_output(self):
+        misses = [
+            {"topic": "Safety checks", "client_need": "care", "why_missed": "my note A"},
+            {"topic": " safety  checks ", "client_need": "care", "why_missed": "my note B"},
+            {"topic": "Safety Checks", "client_need": "safety", "why_missed": "my note C"},
+            {"topic": "Single topic", "client_need": "care", "why_missed": "my note D"},
+        ]
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "journal.json"
+            journal = build_journal(misses)
+            path.write_text(json.dumps(journal, indent=2), encoding="utf-8")
+            original = path.read_bytes()
+
+            text_result = self.run_cli("--journal", path)
+            self.assertEqual(text_result.returncode, 0, text_result.stderr)
+            self.assertIn("Topics missed more than once:\n  • 3 × Safety checks", text_result.stdout)
+            self.assertNotIn("3 × Single topic", text_result.stdout)
+            self.assertEqual(path.read_bytes(), original)
+
+            json_result = self.run_cli("--journal", path, "--json")
+            self.assertEqual(json_result.returncode, 0, json_result.stderr)
+            self.assertEqual(json.loads(json_result.stdout)["repeated_topics"], [
+                {"topic": "Safety checks", "count": 3}
+            ])
+            self.assertEqual(path.read_bytes(), original)
+            self.assertNotIn("repeated_topics", json.loads(original))
+
+            unique_journal = build_journal(sample_misses())
+            self.assertIn("Topics missed more than once:\n  • None yet.", render_journal(unique_journal))
+
     def test_json_plan_output_is_parseable_and_keeps_review_status(self):
         with tempfile.TemporaryDirectory() as folder:
             source = Path(folder) / "missed.json"
